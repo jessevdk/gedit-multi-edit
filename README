@@ -1,0 +1,39 @@
+Gedit Multi Edit Plugin
+
+The multi edit plugin is inspired by the multi edit plugin developed by
+Jon Walsh. This version allows you to enter a special multi edit mode in which
+you can put multiple edit points into the document. Inserting or deleting text
+will replicate that action at all the edit points, hence multi edit.
+
+This plugin goes a bit further and also provides column editing. In principle,
+column editing is very similar to multi edit. The difference is that you can
+select a rectangular part of the buffer, which will be converted to a column
+of edit points once you start inserting or deleting text. The plugin takes care
+of tabs and line endings when needed (it will insert spaces when necessary).
+
+Currently, the following shortcuts are used:
+1) <Ctrl><Shift><C>: Enter multi edit mode
+    1) <Ctrl><Home>: At edit points at the beginning of each line in the 
+                     selection and put the cursor on the line before the first
+                     line in the selection
+    2) <Ctrl><End>:  The reverse of <Ctrl><Home>, add edit points at the end
+                     of the lines in the selection.
+    3) <Ctrl><E>:    Toggle edit point at cursor position
+    4) <Enter>:      When there is a selection spanning multiple lines, will
+                     convert this selection to a column selection. You can
+                     create an 'empty' column selection (one single column) or
+                     the selection can span multiple columns. You can copy and
+                     cut this selection as well as delete it. Upon deletion
+                     (or first insertion), the text in the selection will be
+                     deleted and the column on edit points will be created
+                     at the column. Tab to space conversions only happen when
+                     entering actual edit mode.
+    
+2) <Escape>:
+    1) Removes edit points when multiple edit points are active
+    2) Removes column selection when there is a column selection
+    3) Exits multi edit mode
+
+Care has been taken to preserve the undo stack. Although it could be a bit nicer
+in some cases, this would probably need some changes in the undo manager of 
+GtkSourceView.

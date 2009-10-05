@@ -1,0 +1,10 @@
+[Gedit Plugin]
+Loader=python
+Module=multiedit
+IAge=2
+Name=Multi Edit
+Description=Edit document in multiple places at once
+Icon=gedit-plugin
+Authors=Jesse van den Kieboom <jesse@gnome.org>
+Copyright=Copyright © 2009 Jesse van den Kieboom
+Website=http://www.gedit.org
