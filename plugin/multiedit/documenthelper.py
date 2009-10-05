@@ -738,6 +738,9 @@ class DocumentHelper(Signals):
         tooltip.set_custom(table)
         return True
 
+    def from_color(self, col):
+        return [col.red / float(0x10000), col.green / float(0x10000), col.blue / float(0x10000)]
+
     def on_view_expose_event(self, view, event):
         if event.window == view.get_window(gtk.TEXT_WINDOW_TEXT):
             return self._draw_column_mode(event)
@@ -764,13 +767,14 @@ class DocumentHelper(Signals):
         ctx.translate(0.5, 0.5)
         ctx.set_line_width(1)
 
-        col = view.get_style().text[view.state]
-        ctx.set_source_rgba(col.red_float, col.green_float, col.blue_float, 0.6)
+        col = self.from_color(view.get_style().text[view.state])
+        
+        ctx.set_source_rgba(col[0], col[1], col[2], 0.6)
         ctx.move_to(geom[0], geom[1])
         ctx.rel_line_to(geom[2], 0)
         ctx.stroke()
 
-        ctx.set_source_color(col)
+        ctx.set_source_rgb(col[0], col[1], col[2])
         ctx.move_to(geom[2] - extents[1][2] - 3, (geom[3] - extents[1][3]) / 2)
         ctx.show_layout(layout)
         

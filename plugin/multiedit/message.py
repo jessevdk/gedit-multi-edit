@@ -73,10 +73,12 @@ class Message(Signals):
         ct.arc(x + radius, y + radius, radius, math.pi, math.pi * 1.5)
 
     def darken(self, col, amount):
-        col.red_float = max(0, col.red_float * (1 - amount))
-        col.green_float = max(0, col.green_float * (1 - amount))
-        col.blue_float = max(0, col.blue_float * (1 - amount))
-        
+        for i in xrange(0, len(col)):
+            col[i] = max(0, col[i] * (1 - amount))
+    
+    def from_color(self, col):
+        return [col.red / float(0x10000), col.green / float(0x10000), col.blue / float(0x10000)]
+    
     def on_view_expose_event(self, view, event):
         if self._timeout_id == 0 or event.window != view.get_window(gtk.TEXT_WINDOW_TEXT):
             return False
@@ -91,7 +93,7 @@ class Message(Signals):
         height = extents[1][3]
 
         ctx = event.window.cairo_create()
-        col = view.get_style().text[view.state]
+        col = self.from_color(view.get_style().text[view.state])
         geom = event.window.get_geometry()
         
         x = (geom[2] - width) / 2
@@ -100,7 +102,7 @@ class Message(Signals):
         ctx.set_line_width(1)
         ctx.translate(0.5, 0.5)
         
-        bg = view.get_style().base[view.state]
+        bg = self.from_color(view.get_style().base[view.state])
         self.darken(bg, 0.1)
         
         ctx.save()
@@ -109,21 +111,21 @@ class Message(Signals):
 
         self.rounded_rectangle_path(ctx, rect[0], rect[1], rect[2], rect[3], 5)
 
-        ctx.set_source_rgba(col.red_float, col.green_float, col.blue_float, self._fade_position * 0.8)
+        ctx.set_source_rgba(col[0], col[1], col[2], self._fade_position * 0.8)
         ctx.stroke_preserve()
 
         ctx.clip()
-        ctx.set_source_rgba(bg.red_float, bg.green_float, bg.blue_float, self._fade_position * 0.6)
+        ctx.set_source_rgba(bg[0], bg[1], bg[2], self._fade_position * 0.6)
         ctx.rectangle(rect[0], rect[1] + 0.5 * rect[3], rect[2], 0.5 * rect[3])
         ctx.fill()
         
         self.darken(bg, 0.1)
-        ctx.set_source_rgba(bg.red_float, bg.green_float, bg.blue_float, self._fade_position * 0.8)
+        ctx.set_source_rgba(bg[0], bg[1], bg[2], self._fade_position * 0.8)
         ctx.rectangle(rect[0], rect[1], rect[2], 0.5 * rect[3])
         ctx.fill()
 
         ctx.restore()
-        ctx.set_source_rgba(col.red_float, col.green_float, col.blue_float, self._fade_position)
+        ctx.set_source_rgba(col[0], col[1], col[2], self._fade_position)
         ctx.move_to(x, y)
         ctx.show_layout(layout)
 
