@@ -134,12 +134,13 @@ class DocumentHelper(Signals):
             handler[0] = map(lambda x: gtk.gdk.keyval_from_name(x), handler[0])
 
     def enable_multi_edit(self):
+        self._view.set_border_window_size(gtk.TEXT_WINDOW_BOTTOM, 20)
+
         if self._in_mode:
             return
 
         self._in_mode = True
         self._message.show('Multi edit mode enabled')
-        self._view.set_border_window_size(gtk.TEXT_WINDOW_BOTTOM, 20)
 
     def remove_edit_points(self):
         buf = self._view.get_buffer()
