@@ -275,6 +275,30 @@ class DocumentHelper(Signals):
         self._edit_points.append(mark)
         self.status('<i>%s</i>' % (xml.sax.saxutils.escape(_('Added edit point...'),)))
 
+    def _remove_duplicate_edit_points(self):
+        buf = self._view.get_buffer()
+        
+        for mark in list(self._edit_points):
+            if mark.get_deleted():
+                continue
+
+            piter = buf.get_iter_at_mark(mark)
+
+            others = piter.get_marks()
+            others.remove(mark)
+            
+            for other in others:
+                if other in self._edit_points:
+                    buf.delete_mark(other)
+                    self._edit_points.remove(other)
+        
+        marks = buf.get_iter_at_mark(buf.get_insert()).get_marks()
+        
+        for mark in marks:
+            if mark in self._edit_points:
+                buf.delete_mark(mark)
+                self._edit_points.remove(mark)
+
     def _invalidate_status(self):
         if not self._in_mode:
             return
@@ -530,14 +554,17 @@ class DocumentHelper(Signals):
         self.reset_buffer(view.get_buffer())
 
     def on_insert_text(self, buf, where, text, length):
+        if not self._in_mode:
+            return
+
+        self._remove_duplicate_edit_points()
+
         self.block_signal(buf, 'insert-text')
         buf.begin_user_action()
 
         insert = buf.get_iter_at_mark(buf.get_insert())
         atinsert = where.equal(insert)
-
-        if atinsert:
-            wasat = buf.create_mark(None, insert, False)
+        wasat = buf.create_mark(None, where, True)
 
         if self._column_mode:
             self._apply_column_mode()
@@ -546,19 +573,30 @@ class DocumentHelper(Signals):
             # Insert the text at all the edit points
             for mark in self._edit_points:
                 piter = buf.get_iter_at_mark(mark)
-                buf.insert(piter, text)
+                
+                if not buf.get_iter_at_mark(buf.get_insert()).equal(piter):
+                    buf.insert(piter, text)
         else:
             self.remove_edit_points()
 
-        if atinsert:
-            buf.move_mark(buf.get_insert(), buf.get_iter_at_mark(wasat))
-            buf.move_mark(buf.get_selection_bound(), buf.get_iter_at_mark(wasat))
-            buf.delete_mark(wasat)
+        iterwas = buf.get_iter_at_mark(wasat)
 
+        if hasattr(where, 'assign'):
+            where.assign(iterwas)
+        
+        if atinsert:
+            buf.move_mark(buf.get_insert(), iterwas)
+            buf.move_mark(buf.get_selection_bound(), iterwas)
+            
+        buf.delete_mark(wasat)
         buf.end_user_action()
         self.unblock_signal(buf, 'insert-text')
 
     def on_delete_range_before(self, buf, start, end):
+        if not self._in_mode:
+            return
+
+        self._remove_duplicate_edit_points()
         self._delete_text = start.get_text(end)
         self._delete_length = abs(end.get_offset() - start.get_offset())
 
@@ -594,23 +632,37 @@ class DocumentHelper(Signals):
             if start.equal(buf.get_iter_at_mark(buf.get_insert())):
                 self.block_signal(buf, 'delete-range')
                 buf.begin_user_action()
+                orig = buf.create_mark(None, start, True)
 
                 for mark in self._edit_points:
                     piter = buf.get_iter_at_mark(mark)
                     other = piter.copy()
-
+                    
                     if self._is_backspace:
                         # Remove 'delete_length' chars _before_ piter
-                        other.backward_chars(self._delete_length)
+                        if not other.backward_chars(self._delete_length):
+                            continue
                     else:
                         # Remove 'delete_text' chars _after_ piter
-                        other.forward_chars(self._delete_length)
+                        if not other.forward_chars(self._delete_length):
+                            continue
+
+                    if piter.equal(other):
+                        continue
 
                     piter.order(other)
                     buf.delete(piter, other)
 
                 buf.end_user_action()
                 self.unblock_signal(buf, 'delete-range')
+                
+                piter = buf.get_iter_at_mark(orig)
+                buf.delete_mark(orig)
+                
+                # To be able to have it not crash with old pygtk
+                if hasattr(start, 'assign'):
+                    start.assign(piter)
+                    end.assign(piter)
             else:
                 self.remove_edit_points()
 
