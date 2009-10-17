@@ -40,9 +40,9 @@ class DocumentHelper(Signals):
         self._buffer = None
         self._in_mode = False
         self._column_mode = None
-        self._multi_edit_inserting = False
 
         self._edit_points = []
+        self._multi_edited = False
         self._status = None
         self._status_timeout = 0
         self._delete_mode_id = 0
@@ -77,6 +77,7 @@ class DocumentHelper(Signals):
 
             self.disconnect_signals(self._buffer)
             self._buffer.get_tag_table().remove(self._selection_tag)
+            self._buffer.delete_mark(self._last_insert)
 
         self._buffer = None
 
@@ -94,6 +95,7 @@ class DocumentHelper(Signals):
 
             self._selection_tag = newbuf.create_tag(None)
             self._selection_tag.set_priority(newbuf.get_tag_table().get_size() - 1)
+            self._last_insert = newbuf.create_mark(None, newbuf.get_iter_at_mark(newbuf.get_insert()), True)
 
             self._update_selection_tag()
 
@@ -143,7 +145,7 @@ class DocumentHelper(Signals):
             buf.delete_mark(mark)
 
         self._edit_points = []
-        self._multi_edit_inserting = False
+        self._multi_edited = False
         self._view.queue_draw()
 
     def disable_multi_edit(self):
@@ -185,7 +187,7 @@ class DocumentHelper(Signals):
         return offset
 
     def get_visible_iter(self, line, offset):
-        piter = self._view.get_buffer().get_iter_at_line(line)
+        piter = self._buffer.get_iter_at_line(line)
         tw = self._view.get_tab_width()
         visiblepos = 0
 
@@ -212,7 +214,7 @@ class DocumentHelper(Signals):
         mode = self._column_mode
         self._column_mode = None
 
-        buf = self._view.get_buffer()
+        buf = self._buffer
         start = mode[0]
         end = mode[1]
 
@@ -261,15 +263,15 @@ class DocumentHelper(Signals):
             if mark in self._edit_points:
                 return
         
-        buf = self._view.get_buffer()
-        mark = buf.create_mark(None, piter, False)
+        buf = self._buffer
+        mark = buf.create_mark(None, piter, True)
         mark.set_visible(True)
 
         self._edit_points.append(mark)
         self.status('<i>%s</i>' % (xml.sax.saxutils.escape(_('Added edit point...'),)))
 
     def _remove_duplicate_edit_points(self):
-        buf = self._view.get_buffer()
+        buf = self._buffer
         
         for mark in list(self._edit_points):
             if mark.get_deleted():
@@ -296,7 +298,7 @@ class DocumentHelper(Signals):
         if not self._in_mode:
             return
 
-        window = self._view.get_window(gtk.TEXT_WINDOW_BOTTOM)
+        window = self._view.get_window(gtk.TEXT_WINDOW_TOP)
         geom = window.get_geometry()
         window.invalidate_rect(gtk.gdk.Rectangle(0, 0, geom[2], geom[3]), False)
 
@@ -330,7 +332,7 @@ class DocumentHelper(Signals):
         start = mode[0]
         end = mode[1]
         column = mode[2]
-        buf = self._view.get_buffer()
+        buf = self._buffer
 
         while start <= end:
             piter, offset = self.get_visible_iter(start, column)
@@ -358,10 +360,10 @@ class DocumentHelper(Signals):
 
         # Apply tag to start -> end
         if start.compare(end) < 0:
-            self._view.get_buffer().apply_tag(self._selection_tag, start, end)
+            self._buffer.apply_tag(self._selection_tag, start, end)
 
     def do_column_edit(self, event):
-        buf = self._view.get_buffer()
+        buf = self._buffer
 
         bounds = buf.get_selection_bounds()
 
@@ -414,7 +416,7 @@ class DocumentHelper(Signals):
 
         start = self._column_mode[0]
         end = self._column_mode[1]
-        buf = self._view.get_buffer()
+        buf = self._buffer
 
         col = self._view.get_style().base[gtk.STATE_SELECTED]
         layout = self._view.create_pango_layout('W')
@@ -462,7 +464,7 @@ class DocumentHelper(Signals):
         return False
 
     def do_mark_start_end(self, test, move):
-        buf = self._view.get_buffer()
+        buf = self._buffer
         bounds = buf.get_selection_bounds()
 
         if bounds:
@@ -491,7 +493,7 @@ class DocumentHelper(Signals):
         
         start.backward_line()
         
-        buf = self._view.get_buffer()
+        buf = self._buffer
         buf.move_mark(buf.get_insert(), start)
         buf.move_mark(buf.get_selection_bound(), start)
         
@@ -505,14 +507,14 @@ class DocumentHelper(Signals):
         if not end.ends_line():
             end.forward_to_line_end()
         
-        buf = self._view.get_buffer()
+        buf = self._buffer
         buf.move_mark(buf.get_insert(), end)
         buf.move_mark(buf.get_selection_bound(), end)
 
         return True
         
     def do_toggle_edit_point(self, event):
-        buf = self._view.get_buffer()
+        buf = self._buffer
         piter = buf.get_iter_at_mark(buf.get_insert())
         
         marks = piter.get_marks()
@@ -568,6 +570,7 @@ class DocumentHelper(Signals):
                 piter = buf.get_iter_at_mark(mark)
                 
                 if not buf.get_iter_at_mark(buf.get_insert()).equal(piter):
+                    self._multi_edited = True
                     buf.insert(piter, text)
         else:
             self.remove_edit_points()
@@ -597,7 +600,7 @@ class DocumentHelper(Signals):
         self._is_backspace = start.compare(buf.get_iter_at_mark(buf.get_insert())) < 0
 
     def handle_column_mode_delete(self, mark):
-        buf = self._view.get_buffer()
+        buf = self._buffer
         start = buf.get_iter_at_mark(mark)
         buf.delete_mark(mark)
 
@@ -645,6 +648,7 @@ class DocumentHelper(Signals):
 
                     piter.order(other)
                     buf.delete(piter, other)
+                    self._multi_edited = True
 
                 buf.end_user_action()
                 self.unblock_signal(buf, 'delete-range')
@@ -665,7 +669,7 @@ class DocumentHelper(Signals):
 
         self._column_mode = None
 
-        buf = self._view.get_buffer()
+        buf = self._buffer
         bounds = buf.get_bounds()
 
         buf.remove_tag(self._selection_tag, bounds[0], bounds[1])
@@ -679,7 +683,7 @@ class DocumentHelper(Signals):
         
         start = self._column_mode[0]
         end = self._column_mode[1]
-        buf = self._view.get_buffer()
+        buf = self._buffer
 
         cstart = self._column_mode[2]
         cend = self._column_mode[3]
@@ -738,11 +742,26 @@ class DocumentHelper(Signals):
         self._apply_column_mode()
 
     def on_mark_set(self, buf, where, mark):
-        if not (mark == buf.get_insert() or mark == buf.get_selection_bound()):
+        if not mark == buf.get_insert():
             return
 
-        if self._in_mode and self._column_mode != None:
-            self._cancel_column_mode()
+        if self._in_mode:
+            if self._column_mode != None:
+                # Cancel column mode when cursor moves
+                self._cancel_column_mode()
+            elif self._edit_points and self._multi_edited:
+                # Detect moving up or down a line
+                
+                diff = where.get_offset() - buf.get_iter_at_mark(self._last_insert).get_offset()
+
+                for point in self._edit_points:
+                    piter = buf.get_iter_at_mark(point)
+                    piter.set_offset(piter.get_offset() + diff)
+                    buf.move_mark(point, piter)
+
+                self._remove_duplicate_edit_points()
+
+        self._buffer.move_mark(self._last_insert, where)
 
     def on_view_undo(self, view):
         self._cancel_column_mode()
@@ -786,18 +805,29 @@ class DocumentHelper(Signals):
     def from_color(self, col):
         return [col.red / float(0x10000), col.green / float(0x10000), col.blue / float(0x10000)]
 
+    def _background_color(self):
+        col = self.from_color(self._view.get_style().base[self._view.state])
+        if col[2] > 0.8:
+            col[2] -= 0.2
+        else:
+            col[2] += 0.2
+
+        return col
+
     def on_view_expose_event(self, view, event):
         if event.window == view.get_window(gtk.TEXT_WINDOW_TEXT):
             return self._draw_column_mode(event)
 
-        if event.window != view.get_window(gtk.TEXT_WINDOW_BOTTOM):
+        if event.window != view.get_window(gtk.TEXT_WINDOW_TOP):
             return False
 
         if not self._in_mode:
             return False
 
         ctx = event.window.cairo_create()
-        ctx.set_source_color(view.get_style().base[view.state])
+        col = self._background_color()
+
+        ctx.set_source_rgb(col[0], col[1], col[2])
         ctx.rectangle(event.area)
         ctx.fill_preserve()
         ctx.clip()
@@ -815,7 +845,7 @@ class DocumentHelper(Signals):
         col = self.from_color(view.get_style().text[view.state])
         
         ctx.set_source_rgba(col[0], col[1], col[2], 0.6)
-        ctx.move_to(geom[0], geom[1])
+        ctx.move_to(geom[0], geom[1] + geom[3] - 1)
         ctx.rel_line_to(geom[2], 0)
         ctx.stroke()
 
