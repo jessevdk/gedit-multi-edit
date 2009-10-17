@@ -26,7 +26,6 @@ import glib
 
 from signals import Signals
 import constants
-from message import Message
 import time
 import pango
 import xml.sax.saxutils
@@ -61,7 +60,6 @@ class DocumentHelper(Signals):
 
         self.reset_buffer(self._view.get_buffer())
 
-        self._message = Message(view)
         self.initialize_event_handlers()
 
     def _update_selection_tag(self):
@@ -107,9 +105,6 @@ class DocumentHelper(Signals):
 
         self._view.set_data(constants.DOCUMENT_HELPER_KEY, None)
 
-        self._message.stop()
-        self._message = None
-
         self.disconnect_signals(self._view)
         self._view = None
         
@@ -134,16 +129,15 @@ class DocumentHelper(Signals):
             handler[0] = map(lambda x: gtk.gdk.keyval_from_name(x), handler[0])
 
     def enable_multi_edit(self):
-        self._view.set_border_window_size(gtk.TEXT_WINDOW_BOTTOM, 20)
+        self._view.set_border_window_size(gtk.TEXT_WINDOW_TOP, 20)
 
         if self._in_mode:
             return
 
         self._in_mode = True
-        self._message.show('Multi edit mode enabled')
 
     def remove_edit_points(self):
-        buf = self._view.get_buffer()
+        buf = self._buffer
 
         for mark in self._edit_points:
             buf.delete_mark(mark)
@@ -157,9 +151,8 @@ class DocumentHelper(Signals):
             self._cancel_column_mode()
 
         self._in_mode = False
-        self._message.hide()
 
-        self._view.set_border_window_size(gtk.TEXT_WINDOW_BOTTOM, 0)
+        self._view.set_border_window_size(gtk.TEXT_WINDOW_TOP, 0)
         self.remove_edit_points()
 
     def do_escape_mode(self, event):
