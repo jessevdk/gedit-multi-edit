@@ -1,5 +1,14 @@
 Gedit Multi Edit Plugin
 
+
+********************************* DEPRECATED *********************************
+
+      THIS PROJECT IS DEPRECATED. IT HAS BEEN MERGED INTO `gedit-plugins`
+         IT CAN BE INSTALLED VIA `sudo apt-get install gedit-plugins`
+
+********************************* DEPRECATED *********************************
+
+
 The multi edit plugin is inspired by the multi edit plugin developed by
 Jon Walsh. This version allows you to enter a special multi edit mode in which
 you can put multiple edit points into the document. Inserting or deleting text
